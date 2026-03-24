@@ -15,14 +15,10 @@
  */
 package com.alibaba.cloud.ai.dashscope.embedding.text;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.embedding.text.DashScopeEmbeddingModel.Builder;
@@ -30,21 +26,29 @@ import com.alibaba.cloud.ai.dashscope.spec.DashScopeApiSpec.Embedding;
 import com.alibaba.cloud.ai.dashscope.spec.DashScopeApiSpec.EmbeddingList;
 import com.alibaba.cloud.ai.dashscope.spec.DashScopeApiSpec.EmbeddingUsage;
 import com.alibaba.cloud.ai.dashscope.spec.DashScopeApiSpec.Embeddings;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-
 import com.alibaba.cloud.ai.dashscope.spec.DashScopeModel.EmbeddingModel;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.document.MetadataMode;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.embedding.EmbeddingResponseMetadata;
 import org.springframework.ai.retry.RetryUtils;
 import org.springframework.http.ResponseEntity;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Test cases for DashScopeEmbeddingModel. Tests cover basic embedding operations, error
@@ -306,6 +310,35 @@ class DashScopeEmbeddingModelTests {
 
         assertThat(dimensions).isEqualTo(1024);
         verify(spyModel, never()).embed(anyString());
+    }
+
+    @Test
+    public void testTotalTokens() {
+        DashScopeApi api = DashScopeApi.builder().apiKey("sk-").build();
+        DashScopeEmbeddingModel model = DashScopeEmbeddingModel.builder()
+                .dashScopeApi(api)
+                .metadataMode(MetadataMode.EMBED)
+                .defaultOptions(DashScopeEmbeddingOptions.builder().model(EmbeddingModel.EMBEDDING_V2.getValue()).build())
+                .build();
+
+        EmbeddingRequest request = new EmbeddingRequest(
+                Collections.singletonList("测试文本内容"),
+                null
+        );
+
+        EmbeddingResponse response = model.call(request);
+        EmbeddingResponseMetadata metadata = response.getMetadata();
+
+        System.out.println("--- 真实 API 调用结果 ---");
+        System.out.println("Model: " + metadata.getModel());
+
+        Usage usage = metadata.getUsage();
+        System.out.println("Prompt Tokens: " + usage.getPromptTokens());
+        System.out.println("Completion Tokens: " + usage.getCompletionTokens());
+        System.out.println("Total Tokens: " + usage.getTotalTokens());
+
+        // 核心断言：Total Tokens 不应该为 0
+        assertNotEquals(0, usage.getTotalTokens(), "Total tokens should not be zero for a valid request");
     }
 
 }
