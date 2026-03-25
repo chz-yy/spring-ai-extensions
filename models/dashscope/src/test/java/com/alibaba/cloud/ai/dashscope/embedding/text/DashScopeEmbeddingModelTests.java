@@ -313,32 +313,19 @@ class DashScopeEmbeddingModelTests {
     }
 
     @Test
-    public void testTotalTokens() {
-        DashScopeApi api = DashScopeApi.builder().apiKey("sk-").build();
-        DashScopeEmbeddingModel model = DashScopeEmbeddingModel.builder()
-                .dashScopeApi(api)
-                .metadataMode(MetadataMode.EMBED)
-                .defaultOptions(DashScopeEmbeddingOptions.builder().model(EmbeddingModel.EMBEDDING_V2.getValue()).build())
-                .build();
+    void testTotalTokens() {
+        float[] embeddingVector = { 0.1f, 0.2f, 0.3f };
+        Embedding embedding = new Embedding(0, embeddingVector);
+        Embeddings embeddings = new Embeddings(List.of(embedding));
+        EmbeddingUsage usage = new EmbeddingUsage(10L);
+        EmbeddingList embeddingList = new EmbeddingList(TEST_REQUEST_ID, null, null, embeddings, usage);
+        ResponseEntity<EmbeddingList> responseEntity = ResponseEntity.ok(embeddingList);
 
-        EmbeddingRequest request = new EmbeddingRequest(
-                Collections.singletonList("测试文本内容"),
-                null
-        );
+        when(dashScopeApi.embeddings(any())).thenReturn(responseEntity);
 
-        EmbeddingResponse response = model.call(request);
-        EmbeddingResponseMetadata metadata = response.getMetadata();
+        EmbeddingResponse response = embeddingModel.embedForResponse(List.of(TEST_TEXT));
 
-        System.out.println("--- 真实 API 调用结果 ---");
-        System.out.println("Model: " + metadata.getModel());
-
-        Usage usage = metadata.getUsage();
-        System.out.println("Prompt Tokens: " + usage.getPromptTokens());
-        System.out.println("Completion Tokens: " + usage.getCompletionTokens());
-        System.out.println("Total Tokens: " + usage.getTotalTokens());
-
-        // 核心断言：Total Tokens 不应该为 0
-        assertNotEquals(0, usage.getTotalTokens(), "Total tokens should not be zero for a valid request");
+        assertThat(response.getMetadata().getUsage().getTotalTokens()).isEqualTo(10L);
     }
 
 }
